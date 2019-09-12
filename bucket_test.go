@@ -103,13 +103,13 @@ func TestBucket_Consume(t *testing.T) {
 		accuracy := float64(consumed)/float64(projected) - 1.0
 		t.Log("total consumption =", consumed,
 			"projected =", projected,
-			"accuracy =", accuracy, "in =", dt)
+			"error =", accuracy, "in =", dt)
 
 		if math.Abs(accuracy) > 0.02 {
 			t.Error("something went wrong with accuracy:",
 				"total consumption =", consumed,
 				"projected =", projected,
-				"accuracy =", accuracy, "in =", dt)
+				"error =", accuracy, "in =", dt)
 		}
 	})
 
@@ -145,13 +145,13 @@ func TestBucket_Consume(t *testing.T) {
 		accuracy := float64(consumed)/float64(projected) - 1.0
 		t.Log("total consumption =", consumed,
 			"projected =", projected,
-			"accuracy =", accuracy, "in =", dt)
+			"error =", accuracy, "in =", dt)
 
 		if math.Abs(accuracy) > 0.01 {
 			t.Error("something went wrong with accuracy:",
 				"total consumption =", consumed,
 				"projected =", projected,
-				"accuracy =", accuracy, "in =", dt)
+				"error =", accuracy, "in =", dt)
 		}
 	})
 }

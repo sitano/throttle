@@ -47,6 +47,8 @@ func (b *Bucket) Consume(consume uint64) uint64 {
 		// update last update point
 		var prev = atomic.LoadUint64(&b.ts)
 		var now = uint64(time.Now().UnixNano())
+		// fix time not to drop last piece of update
+		now = prev + ((now-prev)/uint64(time.Millisecond))*uint64(time.Millisecond)
 		if !atomic.CompareAndSwapUint64(&b.ts, prev, now) {
 			continue
 		}
