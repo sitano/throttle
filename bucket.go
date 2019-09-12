@@ -32,7 +32,7 @@ func NewBucket(capacity uint64) *Bucket {
 // concurrent consumers of the bucket.
 func (b *Bucket) Consume(consume uint64) uint64 {
 	var capacity = atomic.LoadUint64(&b.capacity)
-	var consumed = false
+	var consumed bool
 	var fill uint64
 
 	if capacity == 0 {
@@ -44,23 +44,25 @@ func (b *Bucket) Consume(consume uint64) uint64 {
 	}
 
 	for !consumed {
-		// generate tokens past last timestamp
+		// update last update point
 		var prev = atomic.LoadUint64(&b.ts)
 		var now = uint64(time.Now().UnixNano())
-		var since = now - prev
-		if since >= uint64(time.Second) {
-			if !atomic.CompareAndSwapUint64(&b.ts, prev, now) {
-				continue
-			}
+		if !atomic.CompareAndSwapUint64(&b.ts, prev, now) {
+			continue
+		}
+
+		// generate tokens past last timestamp
+		if now-prev >= uint64(time.Second) {
 			// forget possible race condition
 			atomic.StoreUint64(&b.fill, 0)
 			fill = 0
 		} else {
-			var delta_ms = (now - prev) / uint64(time.Millisecond)
-			var tokens = capacity * delta_ms / 1000
+			var deltaMS = (now - prev) / uint64(time.Millisecond)
+			var tokens = capacity * deltaMS / 1000
 			if tokens > 0 {
 				for {
-					if tokens > fill {
+					fill = atomic.LoadUint64(&b.fill)
+					if tokens >= fill {
 						// forget possible race condition
 						atomic.StoreUint64(&b.fill, 0)
 						fill = 0
@@ -69,7 +71,6 @@ func (b *Bucket) Consume(consume uint64) uint64 {
 						fill -= tokens
 						break
 					}
-					fill = atomic.LoadUint64(&b.fill)
 				}
 			}
 		}
@@ -96,7 +97,10 @@ func (b *Bucket) Consume(consume uint64) uint64 {
 				free = capacity - fill
 			}
 			if free < consume {
-				var wait = 1 + 1000*(consume-free)/capacity
+				var wait = 1000 * (consume - free) / capacity
+				if wait < 1 {
+					wait = 1
+				}
 				time.Sleep(time.Millisecond * time.Duration(wait))
 			}
 		}
@@ -115,6 +119,9 @@ func (b *Bucket) Capacity() uint64 {
 
 func (b *Bucket) SetCapacity(capacity uint64) {
 	atomic.StoreUint64(&b.capacity, capacity)
+	if capacity == 0 {
+		atomic.StoreUint64(&b.fill, 0)
+	}
 }
 
 func (b *Bucket) Timestamp() uint64 {
