@@ -12,15 +12,19 @@ import (
 // deadlines in current impl.
 type Conn struct {
 	c net.Conn
-	// TODO: bucket hierarchy
-	b Bucket
+
+	h Hierarchy
 }
 
 var _ net.Conn = (*Conn)(nil)
-var _ Throttle = (*Conn)(nil)
+var _ Capacity = (*Conn)(nil)
 
 func WrapConn(c net.Conn) *Conn {
 	return &Conn{c: c}
+}
+
+func WrapConnWithParent(c net.Conn, p *Bucket) *Conn {
+	return &Conn{c: c, h: *NewHierarchy(p)}
 }
 
 // Read can't peek utilization of the read buffer
@@ -38,7 +42,7 @@ func (c *Conn) Read(b []byte) (n int, err error) {
 	// so do the best effort and configure size of
 	// recv buf b knowing your throttled bandwidth
 	// and application level traffic pattern.
-	reserved := c.b.Consume(uint64(len(b)))
+	reserved := c.h.Consume(uint64(len(b)))
 
 	return c.c.Read(b[:reserved])
 }
@@ -50,7 +54,7 @@ func (c *Conn) Write(b []byte) (n int, err error) {
 	var n2 int
 
 	for len(b) > 0 {
-		reserved := c.b.Consume(uint64(len(b)))
+		reserved := c.h.Consume(uint64(len(b)))
 		if reserved == 0 {
 			return n, errors.New("consumed 0 requested " + strconv.Itoa(len(b)))
 		}
@@ -92,7 +96,7 @@ func (c *Conn) SetWriteDeadline(t time.Time) error {
 }
 
 func (c *Conn) SetCapacity(capacity uint64) {
-	c.b.SetCapacity(capacity)
+	c.h.SetCapacity(capacity)
 	// forgive race condition for concurrent sets
-	c.b.SetFill(capacity)
+	c.h.b.SetFill(capacity)
 }

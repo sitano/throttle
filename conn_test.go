@@ -1,6 +1,8 @@
+// I am sorry for such a messy tests, but this is only a proof of concept.
 package throttle
 
 import (
+	"context"
 	"math"
 	"net"
 	"sync"
@@ -15,144 +17,229 @@ func TestConn(t *testing.T) {
 		const bandwidth = 1000 // bytes / sec
 		const bufSize = 100
 
-		ln, err := net.Listen("tcp", ":0")
-		if err != nil {
-			t.Fatal("net.Listen: ", err)
-		}
-		addr := ln.Addr()
-		t.Log("listening at:", addr)
-
-		wg := &sync.WaitGroup{}
-		stop := uint64(0)
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			id := 0
+		ts := NewTestSystem(t)
+		ts.StartListener(func(ctx context.Context, id uint64, conn net.Conn) {
+			var buf = make([]byte, bufSize)
+			var stat = NewMeasureBandwidth(t, bandwidth, "read")
 
 			for {
-				conn, err := ln.Accept()
+				n, err := conn.Read(buf)
 				if err != nil {
-					if atomic.LoadUint64(&stop) == 0 {
-						t.Error("ln.accept: ", err)
+					if ts.ctx.Err() == nil {
+						t.Error("read:", err)
 					}
 					break
 				}
-
-				wrap := WrapConn(conn)
-				wrap.SetCapacity(bandwidth)
-
-				id++
-
-				wg.Add(1)
-				go func(id int, conn net.Conn) {
-					defer wg.Done()
-
-					var buf = make([]byte, bufSize)
-					var consumed1 uint64
-					var start = time.Now()
-
-					for {
-						n, err := conn.Read(buf)
-						if err != nil {
-							if atomic.LoadUint64(&stop) == 0 {
-								t.Error("read:", err)
-							}
-							break
-						}
-						if n > 0 {
-							consumed1 += uint64(n)
-						}
-						// fmt.Println("id=", id, "consumed", consumed1, "last", n, "since", time.Since(start))
-						// if atomic.LoadUint64(&stop) > 0 {
-						//	break
-						//}
-					}
-
-					dt := time.Since(start)
-					projected := uint64(bandwidth * dt / time.Second)
-					accuracy := float64(consumed1)/float64(projected) - 1.0
-
-					var check = t.Log
-					if math.Abs(accuracy) > math.Max(0.1, 1.0*bufSize/bandwidth) {
-						check = t.Error
-					}
-					check(
-						"id =", id,
-						"total consumption =", consumed1,
-						"projected =", projected,
-						"error =", accuracy, "in =", dt)
-
-					_ = conn.Close()
-				}(id, wrap)
+				stat.Consume(uint64(n))
+				// fmt.Println("id=", id, "consumed", consumed1, "last", n, "since", time.Since(start))
+				// if atomic.LoadUint64(&stop) > 0 {
+				//	break
+				//}
 			}
-		}()
 
-		for i := 0; i < 5; i++ {
-			id := byte(i + 1)
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			stat.Check(id, bufSize)
+		}, 0, bandwidth)
 
-				var consumed1 uint64
-				var b [bandwidth * 2]byte
-				for j := 0; j < len(b); j++ {
-					b[j] = id
-				}
+		ts.StartClient(func(ctx context.Context, id uint64, conn net.Conn) {
+			var buf = make([]byte, bufSize)
+			for j := 0; j < len(buf); j++ {
+				buf[j] = byte(id)
+			}
+			var stat = NewMeasureBandwidth(t, bandwidth, "write")
 
-				conn, err := net.Dial("tcp", addr.String())
+			for {
+				buf := buf[:bufSize]
+
+				n, err := conn.Write(buf)
 				if err != nil {
-					t.Error("id=", id, "net.dial:", err)
-					return
-				}
-				defer conn.Close()
-
-				conn2 := WrapConn(conn)
-				conn2.SetCapacity(bandwidth)
-				conn = conn2
-
-				var start = time.Now()
-				for {
-					buf := b[:bufSize]
-
-					n, err := conn.Write(buf)
-					if err != nil {
-						if atomic.LoadUint64(&stop) == 0 {
-							t.Error("id=", id, "write:", err)
-						}
-						break
+					if ctx.Err() == nil {
+						t.Error("id=", id, "write:", err)
 					}
-					if n != len(buf) {
-						t.Error("id=", id, "invalid len:", n, "!=", len(buf))
-					}
-					consumed1 += uint64(n)
-					// fmt.Println("id=", id, "wrote", consumed1, "last", n, "since", time.Since(start))
-					if atomic.LoadUint64(&stop) > 0 {
-						break
-					}
+					break
 				}
-
-				dt := time.Since(start)
-				projected := uint64(bandwidth * dt / time.Second)
-				accuracy := float64(consumed1)/float64(projected) - 1.0
-
-				var check = t.Log
-				if math.Abs(accuracy) > math.Max(0.1, 1.0*bufSize/bandwidth) {
-					check = t.Error
+				if n != len(buf) {
+					t.Error("id=", id, "invalid len:", n, "!=", len(buf))
 				}
-				check(
-					"id =", id,
-					"total written =", consumed1,
-					"projected =", projected,
-					"error =", accuracy, "in =", dt)
-			}()
-		}
+				stat.Consume(uint64(n))
+				// fmt.Println("id=", id, "wrote", consumed1, "last", n, "since", time.Since(start))
+				if ctx.Err() != nil {
+					break
+				}
+			}
+
+			stat.Check(id, bufSize)
+		}, bandwidth, 5)
 
 		time.Sleep(window)
-		atomic.StoreUint64(&stop, 1)
-		_ = ln.Close()
-		wg.Wait()
+		ts.Stop()
 	})
+}
 
+type testSystem struct {
+	t *testing.T
+
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
+	stop   uint64
+
+	ln net.Listener
+
+	sid uint64
+	cid uint64
+}
+
+func NewTestSystem(t *testing.T) *testSystem {
+	ctx, f := context.WithCancel(context.Background())
+	return &testSystem{
+		t:      t,
+		ctx:    ctx,
+		cancel: f,
+	}
+}
+
+func (t *testSystem) StartListener(
+	f func(ctx context.Context, id uint64, conn net.Conn),
+	serverBandwidth uint64,
+	serverConnBandwidth uint64,
+) {
+	if t.ln != nil {
+		t.t.Fatal("listener already inited")
+	}
+
+	ln, err := net.Listen("tcp", ":0")
+	if err != nil {
+		t.t.Fatal("net.Listen: ", err)
+	}
+	t.t.Log("new listener at:", ln.Addr().String())
+
+	wrap := WrapListener(ln)
+	wrap.SetCapacity(serverBandwidth)
+	wrap.SetConnCapacity(serverConnBandwidth)
+	ln = wrap
+
+	t.ln = ln
+
+	t.wg.Add(1)
+	go func() {
+		defer t.wg.Done()
+
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				if t.ctx.Err() == nil {
+					t.t.Error("ln.accept: ", err)
+				}
+				break
+			}
+
+			id := atomic.AddUint64(&t.sid, 1)
+
+			t.wg.Add(1)
+			go func(conn net.Conn) {
+				defer t.wg.Done()
+				defer conn.Close()
+				f(t.ctx, id, conn)
+			}(conn)
+		}
+	}()
+}
+
+func (t *testSystem) StartClient(
+	f func(ctx context.Context, id uint64, conn net.Conn),
+	clientConnBandwidth uint64,
+	count int,
+) {
+	addr := t.ln.Addr()
+
+	for i := 0; i < count; i++ {
+		id := atomic.AddUint64(&t.cid, 1)
+
+		t.wg.Add(1)
+		go func() {
+			defer t.wg.Done()
+
+			conn, err := net.Dial("tcp", addr.String())
+			if err != nil {
+				t.t.Error("id=", id, "net.dial:", err)
+				return
+			}
+			defer conn.Close()
+
+			conn2 := WrapConn(conn)
+			conn2.SetCapacity(clientConnBandwidth)
+			conn = conn2
+
+			f(t.ctx, id, conn)
+		}()
+	}
+}
+
+func (t *testSystem) Stop() {
+	t.cancel()
+	atomic.StoreUint64(&t.stop, 1)
+	if t.ln != nil {
+		if err := t.ln.Close(); err != nil {
+			t.t.Error("net.listener close:", err)
+		}
+	}
+	t.wg.Wait()
+	atomic.StoreUint64(&t.stop, 2)
+}
+
+// very naive
+type MeasureBandwidth struct {
+	t  *testing.T
+	op string
+	s  time.Time
+	c  uint64 // consumed
+	b  uint64 // bandwidth
+}
+
+func NewMeasureBandwidth(t *testing.T, bandwidth uint64, op string) *MeasureBandwidth {
+	return &MeasureBandwidth{
+		t:  t,
+		op: op,
+		s:  time.Now(),
+		b:  bandwidth,
+	}
+}
+
+func (m *MeasureBandwidth) Consume(c uint64) {
+	m.c += c
+}
+
+func (m *MeasureBandwidth) Print(id uint64) {
+	dt := time.Since(m.s)
+	projected := uint64(time.Duration(m.b) * dt / time.Second)
+	accuracy := float64(m.c)/float64(projected) - 1.0
+
+	var args = []interface{}{
+		m.op,
+		"id =", id,
+		"total =", m.c,
+		"projected =", projected,
+		"accuracy =", accuracy, "in =", dt,
+	}
+	m.t.Log(args...)
+}
+
+func (m *MeasureBandwidth) Check(id uint64, buf uint64) {
+	dt := time.Since(m.s)
+	projected := uint64(time.Duration(m.b) * dt / time.Second)
+	accuracy := float64(m.c)/float64(projected) - 1.0
+
+	var check = m.t.Log
+	var args = []interface{}{
+		m.op,
+		"id =", id,
+		"total =", m.c,
+		"projected =", projected,
+		"accuracy =", accuracy, "in =", dt,
+	}
+	if math.Abs(accuracy) > math.Max(0.1, float64(buf)/float64(m.b)) {
+		check = m.t.Error
+		args = append([]interface{}{"ERROR:"}, args...)
+	}
+	check(args...)
 }

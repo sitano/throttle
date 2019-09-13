@@ -15,6 +15,9 @@ type Bucket struct {
 	ts uint64
 }
 
+var _ Throttle = (*Bucket)(nil)
+var _ Capacity = (*Bucket)(nil)
+
 func NewBucket(capacity uint64) *Bucket {
 	return &Bucket{
 		fill:     0,
@@ -118,6 +121,10 @@ func (b *Bucket) Fill() uint64 {
 
 func (b *Bucket) Capacity() uint64 {
 	return atomic.LoadUint64(&b.capacity)
+}
+
+func (b *Bucket) Unlimited() bool {
+	return atomic.LoadUint64(&b.capacity) == 0
 }
 
 func (b *Bucket) Available() uint64 {
