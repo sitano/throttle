@@ -51,6 +51,10 @@ func (l *Listener) SetCapacity(capacity uint64) {
 	l.b.SetFill(capacity)
 }
 
+func (l *Listener) Reset() {
+	l.b.SetFill(0)
+}
+
 func (l *Listener) SetConnCapacity(capacity uint64) {
 	atomic.StoreUint64(&l.connBandwidth, capacity)
 }

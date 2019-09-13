@@ -41,7 +41,7 @@ func TestHierarchy(t *testing.T) {
 			t.Log(
 				stat.op,
 				"id =", id,
-				"total =", stat.c,
+				"total =", stat.Consumed(),
 				"in =", time.Since(stat.s))
 		}, bandwidth, 0)
 
@@ -66,7 +66,7 @@ func TestHierarchy(t *testing.T) {
 					t.Error("id=", id, "invalid len:", n, "!=", len(buf))
 				}
 				stat.Consume(uint64(n))
-				// fmt.Println("id=", id, "wrote", stat.c, "last", n, "since", time.Since(stat.s))
+				// fmt.Println("id=", id, "wrote", stat.Consumed(), "last", n, "since", time.Since(stat.s))
 				if ctx.Err() != nil {
 					break
 				}
@@ -121,7 +121,7 @@ func TestHierarchy(t *testing.T) {
 				if n != len(buf) {
 					t.Error("id=", id, "invalid len:", n, "!=", len(buf))
 				}
-				// fmt.Println("id=", id, "wrote", stat.c, "last", n, "since", time.Since(stat.s))
+				// fmt.Println("id=", id, "wrote", stat.Consumed(), "last", n, "since", time.Since(stat.s))
 				if ctx.Err() != nil {
 					break
 				}
@@ -130,7 +130,7 @@ func TestHierarchy(t *testing.T) {
 			t.Log(
 				stat.op,
 				"id =", id,
-				"total =", stat.c,
+				"total =", stat.Consumed(),
 				"max =", stat.Projected(time.Since(stat.s)),
 				"in =", time.Since(stat.s))
 		}, bandwidth, 0)
@@ -156,7 +156,7 @@ func TestHierarchy(t *testing.T) {
 					t.Error("id=", id, "invalid len:", n, "!=", len(buf))
 				}
 				stat.Consume(uint64(n))
-				// fmt.Println("id=", id, "wrote", stat.c, "last", n, "since", time.Since(stat.s))
+				// fmt.Println("id=", id, "wrote", stat.Consumed(), "last", n, "since", time.Since(stat.s))
 				if ctx.Err() != nil {
 					break
 				}
@@ -175,7 +175,7 @@ func TestHierarchy(t *testing.T) {
 			t.Log(
 				stat.op,
 				"id =", id,
-				"total =", stat.c,
+				"total =", stat.Consumed(),
 				"max = ", stat.Projected(time.Since(stat.s)),
 				"in =", time.Since(stat.s))
 		}, bandwidth/2, 5)
@@ -224,7 +224,7 @@ func TestHierarchy(t *testing.T) {
 					}
 					break
 				}
-				// fmt.Println("id=", id, "wrote", stat.c, "last", n, "since", time.Since(stat.s))
+				// fmt.Println("id=", id, "wrote", stat.Consumed(), "last", n, "since", time.Since(stat.s))
 				if ctx.Err() != nil {
 					break
 				}
@@ -233,7 +233,7 @@ func TestHierarchy(t *testing.T) {
 			t.Log(
 				stat.op,
 				"id =", id,
-				"total =", stat.c,
+				"total =", stat.Consumed(),
 				"max =", stat.Projected(time.Since(stat.s)),
 				"in =", time.Since(stat.s))
 		}, bandwidth, bandwidth/2)
@@ -259,7 +259,7 @@ func TestHierarchy(t *testing.T) {
 					t.Error("id=", id, "invalid len:", n, "!=", len(buf))
 				}
 				stat.Consume(uint64(n))
-				// fmt.Println("id=", id, "wrote", stat.c, "last", n, "since", time.Since(stat.s))
+				// fmt.Println("id=", id, "wrote", stat.Consumed(), "last", n, "since", time.Since(stat.s))
 				if ctx.Err() != nil {
 					break
 				}
@@ -278,7 +278,7 @@ func TestHierarchy(t *testing.T) {
 			t.Log(
 				stat.op,
 				"id =", id,
-				"total =", stat.c,
+				"total =", stat.Consumed(),
 				"max = ", stat.Projected(time.Since(stat.s)),
 				"in =", time.Since(stat.s))
 		}, bandwidth/2, 5)

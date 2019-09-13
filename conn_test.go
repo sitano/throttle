@@ -187,7 +187,6 @@ func (t *testSystem) Stop() {
 	atomic.StoreUint64(&t.stop, 2)
 }
 
-// very naive
 type MeasureBandwidth struct {
 	t  *testing.T
 	op string
@@ -205,8 +204,12 @@ func NewMeasureBandwidth(t *testing.T, bandwidth uint64, op string) *MeasureBand
 	}
 }
 
+func (m *MeasureBandwidth) Consumed() uint64 {
+	return atomic.LoadUint64(&m.c)
+}
+
 func (m *MeasureBandwidth) Consume(c uint64) {
-	m.c += c
+	atomic.AddUint64(&m.c, c)
 }
 
 func (m *MeasureBandwidth) Projected(dt time.Duration) uint64 {
@@ -214,7 +217,7 @@ func (m *MeasureBandwidth) Projected(dt time.Duration) uint64 {
 }
 
 func (m *MeasureBandwidth) Accuracy(projected uint64) float64 {
-	return float64(m.c)/float64(projected) - 1.0
+	return float64(m.Consumed())/float64(projected) - 1.0
 }
 
 func (m *MeasureBandwidth) Print(id uint64) {
@@ -224,7 +227,7 @@ func (m *MeasureBandwidth) Print(id uint64) {
 
 	m.t.Log(m.op,
 		"id =", id,
-		"total =", m.c,
+		"total =", m.Consumed(),
 		"projected =", projected,
 		"accuracy =", accuracy, "in =", dt)
 }
@@ -238,7 +241,7 @@ func (m *MeasureBandwidth) Check(id uint64, buf uint64) {
 	var args = []interface{}{
 		m.op,
 		"id =", id,
-		"total =", m.c,
+		"total =", m.Consumed(),
 		"projected =", projected,
 		"accuracy =", accuracy, "in =", dt,
 	}

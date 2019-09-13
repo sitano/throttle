@@ -6,4 +6,5 @@ type Throttle interface {
 
 type Capacity interface {
 	SetCapacity(capacity uint64)
+	Reset()
 }

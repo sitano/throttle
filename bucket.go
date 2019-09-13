@@ -148,6 +148,10 @@ func (b *Bucket) SetFill(fill uint64) {
 	atomic.StoreUint64(&b.ts, uint64(time.Now().UnixNano()))
 }
 
+func (b *Bucket) Reset() {
+	b.SetFill(0)
+}
+
 func (b *Bucket) Timestamp() uint64 {
 	return atomic.LoadUint64(&b.ts)
 }

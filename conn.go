@@ -100,3 +100,7 @@ func (c *Conn) SetCapacity(capacity uint64) {
 	// forgive race condition for concurrent sets
 	c.h.b.SetFill(capacity)
 }
+
+func (c *Conn) Reset() {
+	c.h.b.SetFill(0)
+}

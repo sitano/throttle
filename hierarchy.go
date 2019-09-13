@@ -31,6 +31,10 @@ func (h *Hierarchy) SetCapacity(capacity uint64) {
 	h.b.SetCapacity(capacity)
 }
 
+func (h *Hierarchy) Reset() {
+	h.b.SetFill(0)
+}
+
 // Project tries to give best estimate of the reservation
 // available for a single unit of scheduling at parent level.
 func (h *Hierarchy) Project(consume uint64) uint64 {
