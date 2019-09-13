@@ -28,8 +28,9 @@ func NewBucket(capacity uint64) *Bucket {
 // it blocks waiting for the maximum capacity. Consume returns
 // a capacity at most at once.
 //
-// It does not use mutexes as it assumes that there are no
-// concurrent consumers of the bucket.
+// It is implemented with atomics because I wanted to play with
+// lock free bucket, not because it is faster for a single
+// consumer.
 func (b *Bucket) Consume(consume uint64) uint64 {
 	var capacity = atomic.LoadUint64(&b.capacity)
 	var consumed bool
@@ -55,7 +56,7 @@ func (b *Bucket) Consume(consume uint64) uint64 {
 
 		// generate tokens past last timestamp
 		if now-prev >= uint64(time.Second) {
-			// forget possible race condition
+			// forgive possible race condition
 			atomic.StoreUint64(&b.fill, 0)
 			fill = 0
 		} else {
@@ -65,7 +66,7 @@ func (b *Bucket) Consume(consume uint64) uint64 {
 				for {
 					fill = atomic.LoadUint64(&b.fill)
 					if tokens >= fill {
-						// forget possible race condition
+						// forgive possible race condition
 						atomic.StoreUint64(&b.fill, 0)
 						fill = 0
 						break
@@ -119,11 +120,25 @@ func (b *Bucket) Capacity() uint64 {
 	return atomic.LoadUint64(&b.capacity)
 }
 
+func (b *Bucket) Available() uint64 {
+	c := b.Capacity()
+	f := b.Fill()
+	if f > c {
+		return 0
+	}
+	return c - f
+}
+
 func (b *Bucket) SetCapacity(capacity uint64) {
 	atomic.StoreUint64(&b.capacity, capacity)
 	if capacity == 0 {
 		atomic.StoreUint64(&b.fill, 0)
 	}
+}
+
+func (b *Bucket) SetFill(fill uint64) {
+	atomic.StoreUint64(&b.fill, fill)
+	atomic.StoreUint64(&b.ts, uint64(time.Now().UnixNano()))
 }
 
 func (b *Bucket) Timestamp() uint64 {

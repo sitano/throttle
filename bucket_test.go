@@ -83,7 +83,6 @@ func TestBucket_Consume(t *testing.T) {
 		b := NewBucket(1000)
 
 		assertConsumeMax(t, b, 2*bandwidth, bandwidth, time.Millisecond, "consume all tokens first")
-		assertEqU64(t, b.fill, b.capacity)
 
 		consumed := uint64(0)
 		start := time.Now()
@@ -96,8 +95,6 @@ func TestBucket_Consume(t *testing.T) {
 			}
 		}
 
-		assertEqU64(t, b.fill, b.capacity)
-
 		dt := time.Since(start)
 		projected := uint64(bandwidth * dt / time.Second)
 		accuracy := float64(consumed)/float64(projected) - 1.0
@@ -105,7 +102,7 @@ func TestBucket_Consume(t *testing.T) {
 			"projected =", projected,
 			"error =", accuracy, "in =", dt)
 
-		if math.Abs(accuracy) > 0.02 {
+		if math.Abs(accuracy) > 0.01 {
 			t.Error("something went wrong with accuracy:",
 				"total consumption =", consumed,
 				"projected =", projected,
@@ -121,7 +118,6 @@ func TestBucket_Consume(t *testing.T) {
 		b := NewBucket(bandwidth)
 
 		assertConsumeMax(t, b, 2*bandwidth, bandwidth, time.Millisecond, "consume all tokens first")
-		assertEqU64(t, b.fill, b.capacity)
 
 		consumed := uint64(0)
 		start := time.Now()
@@ -132,13 +128,11 @@ func TestBucket_Consume(t *testing.T) {
 				t.Error("invalid consume")
 			}
 			consumed += dc
-			t.Log("consumed =", consumed, ", dt =", time.Since(start))
+			// t.Log("consumed =", consumed, ", dt =", time.Since(start))
 			if time.Since(start) >= window {
 				break
 			}
 		}
-
-		assertEqU64(t, b.fill, b.capacity)
 
 		dt := time.Since(start)
 		projected := uint64(bandwidth * dt / time.Second)
@@ -192,7 +186,7 @@ func assertConsumeMax(t *testing.T, b *Bucket, consume uint64, expected uint64, 
 		t.Error(append([]interface{}{"assert consume: ", consumed, "!=", expected}, msg...)...)
 	}
 	// add 2 ms for scheduling overhead
-	if time.Since(start)-2*time.Millisecond > in {
+	if time.Since(start) > 2*in {
 		t.Error(append([]interface{}{"assert consume time: ", time.Since(start), ">", in}, msg...)...)
 	}
 }
