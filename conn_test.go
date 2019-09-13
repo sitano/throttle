@@ -209,25 +209,30 @@ func (m *MeasureBandwidth) Consume(c uint64) {
 	m.c += c
 }
 
+func (m *MeasureBandwidth) Projected(dt time.Duration) uint64 {
+	return uint64(time.Duration(m.b) * dt / time.Second)
+}
+
+func (m *MeasureBandwidth) Accuracy(projected uint64) float64 {
+	return float64(m.c)/float64(projected) - 1.0
+}
+
 func (m *MeasureBandwidth) Print(id uint64) {
 	dt := time.Since(m.s)
-	projected := uint64(time.Duration(m.b) * dt / time.Second)
-	accuracy := float64(m.c)/float64(projected) - 1.0
+	projected := m.Projected(dt)
+	accuracy := m.Accuracy(projected)
 
-	var args = []interface{}{
-		m.op,
+	m.t.Log(m.op,
 		"id =", id,
 		"total =", m.c,
 		"projected =", projected,
-		"accuracy =", accuracy, "in =", dt,
-	}
-	m.t.Log(args...)
+		"accuracy =", accuracy, "in =", dt)
 }
 
 func (m *MeasureBandwidth) Check(id uint64, buf uint64) {
 	dt := time.Since(m.s)
-	projected := uint64(time.Duration(m.b) * dt / time.Second)
-	accuracy := float64(m.c)/float64(projected) - 1.0
+	projected := m.Projected(dt)
+	accuracy := m.Accuracy(projected)
 
 	var check = m.t.Log
 	var args = []interface{}{
