@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"strconv"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -32,7 +31,7 @@ func TestHour(t *testing.T) {
 	overallWrite := NewMeasureBandwidth(t, bandwidth, "total_wrote")
 	var ag15stat [threads]uint64
 	ts.StartListener(func(ctx context.Context, id uint64, conn net.Conn) {
-		var buf = make([]byte, bandwidth/10)
+		var buf = make([]byte, bandwidth/16)
 		var stat = NewMeasureBandwidth(t, bandwidth, "read")
 
 		go func() {
@@ -51,6 +50,10 @@ func TestHour(t *testing.T) {
 				for i := 0; i < len(w15stat); i++ {
 					w15sum += w15stat[i]
 				}
+				w15dt := uint64(time.Since(w15start) / time.Second)
+				if w15dt > 15 {
+					w15dt = 15
+				}
 				ag15sum := uint64(0)
 				for i := 0; i < len(ag15stat); i++ {
 					ag15sum += atomic.LoadUint64(&ag15stat[i])
@@ -64,7 +67,7 @@ func TestHour(t *testing.T) {
 					"tu=", fmt.Sprintf("%0.3f", float64(m.Consumed())/float64(ag15sum)),
 					"du=", fmt.Sprintf("%0.3f", float64(m.Consumed()-prevRead)/bandwidth),
 					"ds=", m.Consumed()-prevRead,
-					"dsa/15s=", w15sum/15,
+					"dsa/15s=", w15sum/w15dt,
 					"dss/15s=", w15sum,
 					"md=", bandwidth,
 					"in=", dt)
@@ -87,17 +90,6 @@ func TestHour(t *testing.T) {
 			if ctx.Err() != nil {
 				break
 			}
-			n, err = conn.Write([]byte(strconv.FormatUint(stat.Consumed(), 10)))
-			if err != nil {
-				if ctx.Err() == nil {
-					t.Error("id=", id, "server write:", err)
-				}
-				break
-			}
-			// fmt.Println("id=", id, "wrote", stat.Consumed(), "last", n, "since", time.Since(stat.s))
-			if ctx.Err() != nil {
-				break
-			}
 		}
 
 		t.Log(
@@ -107,8 +99,6 @@ func TestHour(t *testing.T) {
 			"max =", stat.Projected(time.Since(stat.s)),
 			"in =", time.Since(stat.s))
 	}, bandwidth, 0)
-
-	ts.ln.(Capacity).Reset()
 
 	ts.StartClient(func(ctx context.Context, id uint64, conn net.Conn) {
 		var buf = make([]byte, 10*bandwidth)
@@ -133,17 +123,6 @@ func TestHour(t *testing.T) {
 			stat.Consume(uint64(n))
 			overallWrite.Consume(uint64(n))
 			fmt.Println("id=", id, "wrote", stat.Consumed(), "last", n, "since", time.Since(stat.s))
-			if ctx.Err() != nil {
-				break
-			}
-
-			n, err = conn.Read(buf)
-			if err != nil {
-				if ts.ctx.Err() == nil {
-					t.Error("client read:", err)
-				}
-				break
-			}
 			if ctx.Err() != nil {
 				break
 			}
@@ -173,6 +152,10 @@ func TestHour(t *testing.T) {
 			for i := 0; i < len(ag15stat); i++ {
 				ag15sum += atomic.LoadUint64(&ag15stat[i])
 			}
+			ag15dt := uint64(time.Since(m.s) / time.Second)
+			if ag15dt > 15 {
+				ag15dt = 15
+			}
 
 			fmt.Println(
 				">>>",
@@ -181,9 +164,9 @@ func TestHour(t *testing.T) {
 				"max=", projected,
 				"acc=", fmt.Sprintf("%.3f", accuracy),
 				"ds=", m.Consumed()-lastTotalRead,
-				"avg/15s=", ag15sum/15,
+				"avg/15s=", ag15sum/ag15dt,
 				"sum/15s=", ag15sum,
-				"util/15s=", fmt.Sprintf("%.3f", float64(ag15sum)/float64(bandwidth*15)),
+				"util/15s=", fmt.Sprintf("%.3f", float64(ag15sum)/float64(bandwidth*ag15dt)),
 				"in=", dt)
 
 			lastTotalRead = m.Consumed()
@@ -191,15 +174,11 @@ func TestHour(t *testing.T) {
 		{
 			m := overallWrite
 			dt := time.Since(m.s)
-			projected := m.Projected(dt)
-			accuracy := m.Accuracy(projected)
 
 			fmt.Println(
 				">>>",
 				m.op,
 				"total=", m.Consumed(),
-				"max=", projected,
-				"acc=", fmt.Sprintf("%.3f", accuracy),
 				"ds=", m.Consumed()-lastTotalWrite,
 				"in=", dt)
 

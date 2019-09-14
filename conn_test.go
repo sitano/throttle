@@ -212,6 +212,10 @@ func (m *MeasureBandwidth) Consume(c uint64) {
 	atomic.AddUint64(&m.c, c)
 }
 
+func (m *MeasureBandwidth) Reset() {
+	atomic.StoreUint64(&m.c, 0)
+}
+
 func (m *MeasureBandwidth) Projected(dt time.Duration) uint64 {
 	return uint64(time.Duration(m.b) * dt / time.Second)
 }
