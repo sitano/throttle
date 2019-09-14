@@ -29,18 +29,18 @@ func WrapConnWithParent(c net.Conn, p *Bucket) *Conn {
 
 // Read can't peek utilization of the read buffer
 // in advance. So doing our best we are just consuming
-// min(len(b), bucket.capacity) from the bucket and return it.
+// min(len(leaf), bucket.capacity) from the bucket and return it.
 func (c *Conn) Read(b []byte) (n int, err error) {
 	if len(b) == 0 {
 		return 0, nil
 	}
 
-	// reserved = min(len(b), bucket.capacity)
+	// reserved = min(len(leaf), bucket.capacity)
 	// as there is no sense to wait more than a sec
 	// not knowing read buf utilization.
 	//
 	// so do the best effort and configure size of
-	// recv buf b knowing your throttled bandwidth
+	// recv buf leaf knowing your throttled bandwidth
 	// and application level traffic pattern.
 	reserved := c.h.Consume(uint64(len(b)))
 
@@ -98,9 +98,9 @@ func (c *Conn) SetWriteDeadline(t time.Time) error {
 func (c *Conn) SetCapacity(capacity uint64) {
 	c.h.SetCapacity(capacity)
 	// forgive race condition for concurrent sets
-	c.h.b.SetFill(capacity)
+	c.h.leaf.SetFill(capacity)
 }
 
 func (c *Conn) Reset() {
-	c.h.b.SetFill(0)
+	c.h.leaf.SetFill(0)
 }

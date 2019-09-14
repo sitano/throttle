@@ -31,7 +31,7 @@ func TestHour(t *testing.T) {
 	overallWrite := NewMeasureBandwidth(t, bandwidth, "total_wrote")
 	var ag15stat [threads]uint64
 	ts.StartListener(func(ctx context.Context, id uint64, conn net.Conn) {
-		var buf = make([]byte, bandwidth/16)
+		var buf = make([]byte, bandwidth)
 		var stat = NewMeasureBandwidth(t, bandwidth, "read")
 
 		go func() {
@@ -60,7 +60,7 @@ func TestHour(t *testing.T) {
 				}
 
 				fmt.Println(
-					">>>",
+					">",
 					m.op,
 					"id=", id,
 					"total=", m.Consumed(),
