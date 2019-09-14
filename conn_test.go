@@ -61,7 +61,7 @@ func TestConn(t *testing.T) {
 					t.Error("id=", id, "invalid len:", n, "!=", len(buf))
 				}
 				stat.Consume(uint64(n))
-				// fmt.Println("id=", id, "wrote", consumed1, "last", n, "since", time.Since(start))
+				// fmt.Println("id=", id, "wrote", stat.c, "last", n, "since", time.Since(stat.s))
 				if ctx.Err() != nil {
 					break
 				}

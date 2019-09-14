@@ -63,7 +63,7 @@ func TestHierarchy(t *testing.T) {
 					break
 				}
 				if n != len(buf) {
-					t.Error("id=", id, "invalid len:", n, "!=", len(buf))
+					t.Error("id=", id, "invalid write len:", n, "!=", len(buf))
 				}
 				stat.Consume(uint64(n))
 				// fmt.Println("id=", id, "wrote", stat.Consumed(), "last", n, "since", time.Since(stat.s))
@@ -111,15 +111,15 @@ func TestHierarchy(t *testing.T) {
 					break
 				}
 				// send everything back
-				n, err = conn.Write(buf[:n])
-				if err != nil {
+				n2, err2 := conn.Write(buf[:n])
+				if err2 != nil {
 					if ctx.Err() == nil {
-						t.Error("id=", id, "server write:", err)
+						t.Error("id=", id, "server write:", err2)
 					}
 					break
 				}
-				if n != len(buf) {
-					t.Error("id=", id, "invalid len:", n, "!=", len(buf))
+				if n != n2 {
+					t.Error("id=", id, "invalid write size:", n, "!=", n2)
 				}
 				// fmt.Println("id=", id, "wrote", stat.Consumed(), "last", n, "since", time.Since(stat.s))
 				if ctx.Err() != nil {
@@ -153,15 +153,14 @@ func TestHierarchy(t *testing.T) {
 					break
 				}
 				if n != len(buf) {
-					t.Error("id=", id, "invalid len:", n, "!=", len(buf))
+					t.Error("id=", id, "invalid write len:", n, "!=", len(buf))
 				}
 				stat.Consume(uint64(n))
 				// fmt.Println("id=", id, "wrote", stat.Consumed(), "last", n, "since", time.Since(stat.s))
 				if ctx.Err() != nil {
 					break
 				}
-				n, err = conn.Read(buf)
-				if err != nil {
+				if _, err = conn.Read(buf); err != nil {
 					if ts.ctx.Err() == nil {
 						t.Error("client read:", err)
 					}
@@ -217,8 +216,7 @@ func TestHierarchy(t *testing.T) {
 					break
 				}
 				// send everything back
-				n, err = conn.Write(buf[:n])
-				if err != nil {
+				if _, err = conn.Write(buf[:n]); err != nil {
 					if ctx.Err() == nil {
 						t.Error("id=", id, "server write:", err)
 					}
@@ -256,15 +254,14 @@ func TestHierarchy(t *testing.T) {
 					break
 				}
 				if n != len(buf) {
-					t.Error("id=", id, "invalid len:", n, "!=", len(buf))
+					t.Error("id=", id, "invalid write len:", n, "!=", len(buf))
 				}
 				stat.Consume(uint64(n))
 				// fmt.Println("id=", id, "wrote", stat.Consumed(), "last", n, "since", time.Since(stat.s))
 				if ctx.Err() != nil {
 					break
 				}
-				n, err = conn.Read(buf)
-				if err != nil {
+				if _, err = conn.Read(buf); err != nil {
 					if ts.ctx.Err() == nil {
 						t.Error("client read:", err)
 					}

@@ -50,9 +50,8 @@ func (b *Bucket) Consume(consume uint64) uint64 {
 	for !consumed {
 		// update last update point
 		var prev = atomic.LoadUint64(&b.ts)
-		var now = uint64(time.Now().UnixNano())
 		// fix time not to drop last piece of update
-		now = prev + ((now-prev)/uint64(time.Millisecond))*uint64(time.Millisecond)
+		var now = (uint64(time.Now().UnixNano()) / uint64(time.Millisecond)) * uint64(time.Millisecond)
 		if !atomic.CompareAndSwapUint64(&b.ts, prev, now) {
 			continue
 		}
@@ -145,7 +144,7 @@ func (b *Bucket) SetCapacity(capacity uint64) {
 
 func (b *Bucket) SetFill(fill uint64) {
 	atomic.StoreUint64(&b.fill, fill)
-	atomic.StoreUint64(&b.ts, uint64(time.Now().UnixNano()))
+	atomic.StoreUint64(&b.ts, (uint64(time.Now().UnixNano())/uint64(time.Millisecond))*uint64(time.Millisecond))
 }
 
 func (b *Bucket) Reset() {
